@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>日報自動作成</title>
+<style>
+  :root{
+    --bg:#0f1720;
+    --card:#182635;
+    --card2:#1f3040;
+    --accent:#2fae60;
+    --accent2:#27994f;
+    --text:#eef3f7;
+    --sub:#9fb2c3;
+    --danger:#e0554f;
+    --line:#06c755;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html{
+    -webkit-text-size-adjust:100%;
+  }
+  body{
+    margin:0;
+    font-family:"Hiragino Sans","Noto Sans JP",system-ui,-apple-system,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    -webkit-tap-highlight-color:transparent;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-y:contain;
+  }
+  #app{
+    max-width:520px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding-bottom:76px;
+  }
+  header.top{
+    padding:18px 18px 12px;
+    position:sticky;
+    top:0;
+    background:var(--bg);
+    z-index:5;
+    border-bottom:1px solid #22303c;
+    transform:translateZ(0);
+    -webkit-transform:translateZ(0);
+    will-change:transform;
+    backface-visibility:hidden;
+  }
+  header.top h1{
+    font-size:18px;
+    margin:0 0 2px;
+    font-weight:700;
+  }
+  header.top p{
+    margin:0;
+    font-size:12px;
+    color:var(--sub);
+  }
+  main{
+    flex:1;
+    padding:14px 16px 24px;
+  }
+  section{display:none;}
+  section.active{display:block;}
+  .card{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:14px;
+    border:1px solid #223142;
+    contain:content;
+  }
+  .card h2{
+    font-size:14px;
+    margin:0 0 12px;
+    color:var(--sub);
+    font-weight:600;
+    letter-spacing:.02em;
+  }
+  label.field-label{
+    display:block;
+    font-size:13px;
+    margin-bottom:6px;
+    color:var(--text);
+    font-weight:600;
+  }
+  .field-tag{
+    display:inline-block;
+    font-size:10px;
+    padding:2px 7px;
+    border-radius:20px;
+    background:#26405a;
+    color:#8fd6ff;
+    margin-left:6px;
+    font-weight:600;
+    vertical-align:middle;
+  }
+  .field-block{margin-bottom:16px;}
+  .counter-row{display:flex; align-items:stretch; gap:8px;}
+  .counter-row button{
+    width:46px; flex:none; border:none; border-radius:10px;
+    background:#22303f; color:var(--text); font-size:20px; font-weight:700; cursor:pointer;
+    touch-action:manipulation;
+  }
+  .counter-row input[type=number]{
+    text-align:center; font-size:18px; font-weight:700;
+  }
+  .counter-hint{font-size:11px; color:var(--sub); margin-top:4px;}
+  input[type=text], input[type=number], input[type=date], textarea, select{
+    width:100%;
+    background:#0f1c28;
+    border:1px solid #2a3d4f;
+    color:var(--text);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:14px;
+    font-family:inherit;
+    resize:vertical;
+  }
+  textarea{min-height:74px;}
+  input:focus, textarea:focus, select:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .btn{
+    display:block;
+    width:100%;
+    text-align:center;
+    text-decoration:none;
+    padding:13px 16px;
+    border-radius:12px;
+    border:none;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    box-sizing:border-box;
+    touch-action:manipulation;
+  }
+  .btn-primary{background:var(--accent); color:#05170a;}
+  .btn-primary:active{background:var(--accent2);}
+  .btn-line{background:var(--line); color:#fff; margin-top:10px;}
+  .btn-ghost{background:transparent; color:var(--sub); border:1px solid #2a3d4f;}
+  .btn-danger{background:transparent; color:var(--danger); border:1px solid #5a2e2c;}
+  .btn-sm{padding:8px 12px; font-size:12px; width:auto; display:inline-block;}
+  .row{display:flex; gap:8px;}
+  .row > *{flex:1;}
+  .muted{color:var(--sub); font-size:12px; line-height:1.6;}
+  .result-box{
+    white-space:pre-wrap;
+    width:100%;
+    min-height:220px;
+    background:#0b141c;
+    border:1px solid #24425a;
+    border-radius:10px;
+    padding:12px;
+    font-size:13.5px;
+    line-height:1.7;
+    color:#dff3e8;
+  }
+  .empty-note{
+    text-align:center;
+    color:var(--sub);
+    font-size:13px;
+    padding:30px 10px;
+  }
+  nav.tabbar{
+    position:fixed;
+    bottom:0; left:0; right:0;
+    background:#101c26;
+    border-top:1px solid #24323e;
+    display:flex;
+    max-width:520px;
+    margin:0 auto;
+    transform:translateZ(0);
+    -webkit-transform:translateZ(0);
+    will-change:transform;
+    backface-visibility:hidden;
+  }
+  nav.tabbar button{
+    flex:1;
+    background:none;
+    border:none;
+    color:var(--sub);
+    padding:12px 0 calc(10px + env(safe-area-inset-bottom));
+    font-size:12px;
+    font-weight:600;
+    touch-action:manipulation;
+  }
+  nav.tabbar button.active{color:var(--accent);}
+  .field-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 0;
+    border-bottom:1px solid #223142;
+    gap:8px;
+  }
+  .field-item:last-child{border-bottom:none;}
+  .field-item .fi-main{flex:1; min-width:0;}
+  .field-item .fi-main .fi-label{font-size:13.5px; font-weight:600;}
+  .field-item .fi-main .fi-meta{font-size:11px; color:var(--sub); margin-top:2px;}
+  .field-item .fi-actions{display:flex; gap:6px;}
+  .icon-btn{
+    background:#22303f; border:none; color:var(--text);
+    border-radius:8px; padding:6px 9px; font-size:12px; cursor:pointer;
+    touch-action:manipulation;
+  }
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.55);
+    display:none; align-items:flex-end; justify-content:center; z-index:20;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{
+    background:var(--card2);
+    width:100%;
+    max-width:520px;
+    border-radius:18px 18px 0 0;
+    padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height:85vh;
+    overflow-y:auto;
+  }
+  .modal h3{margin:0 0 14px; font-size:15px;}
+  .form-grid{display:flex; flex-direction:column; gap:10px; margin-bottom:14px;}
+  .placeholder-list{
+    display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;
+  }
+  .ph-chip{
+    background:#0f1c28; border:1px solid #2a3d4f; color:#8fd6ff;
+    font-size:11px; padding:4px 8px; border-radius:8px; cursor:pointer;
+    touch-action:manipulation;
+  }
+  .toast{
+    position:fixed; left:50%; bottom:90px; transform:translateX(-50%);
+    background:#0b141c; color:var(--text); padding:10px 16px; border-radius:10px;
+    font-size:13px; border:1px solid #2a3d4f; z-index:40; opacity:0; transition:opacity .2s;
+    pointer-events:none; max-width:80%; text-align:center;
+  }
+  .toast.show{opacity:1;}
+  hr.sep{border:none; border-top:1px solid #223142; margin:14px 0;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <h1>📋 日報自動作成</h1>
+    <p id="todayLabel"></p>
+  </header>
+
+  <main>
+    <!-- ============ 入力タブ ============ -->
+    <section id="view-input" class="active">
+      <div class="card" id="formCard">
+        <h2>本日の入力項目</h2>
+        <div id="fieldsContainer"></div>
+        <button class="btn btn-primary" id="btnComplete">完了して日報を作成</button>
+      </div>
+
+      <div class="card" id="resultCard" style="display:none;">
+        <h2>作成された日報</h2>
+        <textarea class="result-box" id="resultText" readonly></textarea>
+        <button class="btn btn-line" id="btnCopyLine">コピーしてLINEで共有</button>
+        <button class="btn btn-ghost" id="btnCopyOnly" style="margin-top:8px;">コピーのみ</button>
+        <button class="btn btn-ghost" id="btnEditAgain" style="margin-top:8px;">入力に戻る</button>
+      </div>
+    </section>
+
+    <!-- ============ 設定タブ ============ -->
+    <section id="view-settings">
+      <div class="card">
+        <h2>19時の通知について</h2>
+        <p class="muted">この端末の標準アラーム機能を使ってリマインドします。下のボタンでアラーム設定画面を開けます（Android + Chrome 推奨）。アラームが鳴ったら、ホーム画面に追加したこのアプリのアイコンをタップして開いてください。</p>
+        <a class="btn btn-primary" style="margin-top:10px;" id="btnSetAlarm" href="#">19:00に日報アラームを設定する</a>
+      </div>
+
+      <div class="card">
+        <h2>架電目標の判定値</h2>
+        <p class="muted">「架電目標」の達成/未達は、今月の本日架電の累計がこの数値以上かどうかで判定します（現在のテンプレートの初期値は1500）。</p>
+        <div class="row" style="margin-top:8px;">
+          <input type="number" id="callTargetInput" min="0">
+          <button class="btn btn-primary btn-sm" id="btnSaveCallTarget" style="width:auto;">保存</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>入力項目の管理</h2>
+        <div id="fieldsAdminList"></div>
+        <button class="btn btn-ghost" id="btnAddField" style="margin-top:10px;">＋ 入力項目を追加</button>
+      </div>
+
+      <div class="card">
+        <h2>テンプレート編集</h2>
+        <p class="muted">
+          {{項目キー}} でその項目の値を挿入します。{{#項目キー}}〜{{/項目キー}} で囲むと、その項目が今日の対象でない日は自動的にその部分ごと省略されます。{{date}} で本日の日付を挿入できます。オレンジ色のチップは自動計算される値（月間累計・目標・達成判定）です。
+        </p>
+        <div class="placeholder-list" id="placeholderList"></div>
+        <textarea id="templateEditor" style="min-height:220px; margin-top:10px; font-family:monospace;"></textarea>
+        <button class="btn btn-primary" id="btnSaveTemplate" style="margin-top:10px;">テンプレートを保存</button>
+      </div>
+
+      <div class="card">
+        <button class="btn btn-danger" id="btnResetAll">初期設定にリセット</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button id="tab-input" class="active" data-view="view-input">入力</button>
+    <button id="tab-settings" data-view="view-settings">設定</button>
+  </nav>
+
+  <div class="modal-overlay" id="fieldModalOverlay">
+    <div class="modal">
+      <h3 id="fieldModalTitle">項目を追加</h3>
+      <div class="form-grid">
+        <div>
+          <label class="field-label">項目名（表示名）</label>
+          <input type="text" id="fmLabel" placeholder="例：本日の業務内容">
+        </div>
+        <div>
+          <label class="field-label">項目キー（半角英数、テンプレート用）</label>
+          <input type="text" id="fmKey" placeholder="例：business_content">
+        </div>
+        <div>
+          <label class="field-label">入力タイプ</label>
+          <select id="fmType">
+            <option value="textarea">複数行テキスト</option>
+            <option value="text">一行テキスト</option>
+            <option value="number">数値</option>
+            <option value="counter">数値（0〜200・+/-ボタン付き）</option>
+            <option value="date">日付</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">入力タイミング</label>
+          <select id="fmFrequency">
+            <option value="daily">毎日</option>
+            <option value="weekly">毎週（曜日指定）</option>
+            <option value="monthly">毎月（日付指定）</option>
+          </select>
+        </div>
+        <div id="fmWeekdayWrap" style="display:none;">
+          <label class="field-label">曜日</label>
+          <select id="fmWeekday">
+            <option value="0">日曜日</option>
+            <option value="1">月曜日</option>
+            <option value="2">火曜日</option>
+            <option value="3">水曜日</option>
+            <option value="4">木曜日</option>
+            <option value="5" selected>金曜日</option>
+            <option value="6">土曜日</option>
+          </select>
+        </div>
+        <div id="fmMonthdayWrap" style="display:none;">
+          <label class="field-label">毎月の日付</label>
+          <select id="fmMonthday">
+            <option value="-1">月末</option>
+            <option value="1">1日</option>
+            <option value="15">15日</option>
+            <option value="25">25日</option>
+            <option value="custom">その他（下に日付を入力）</option>
+          </select>
+          <input type="number" id="fmMonthdayCustom" min="1" max="31" placeholder="日（1〜31）" style="margin-top:6px; display:none;">
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn btn-ghost" id="fmCancel">キャンセル</button>
+        <button class="btn btn-primary" id="fmSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "nippouAppData_v1";
+
+  // KPI項目ごとの b(月間累計)/c(月末に来月分として入力する目標)/d(達成判定) の対応表。
+  // rawKey: 毎日の入力項目キー / targetKey: 月末に入力する「来月の目標」項目キー / dKey: 達成判定を出す場合のキー（不要ならnull）
+  var KPI_ITEMS = [
+    { rawKey:"appointments",     targetKey:"target_appointments_next_month",     dKey:"d_appointments" },
+    { rawKey:"visits",           targetKey:"target_visits_next_month",           dKey:null },
+    { rawKey:"contracts",        targetKey:"target_contracts_next_month",        dKey:null },
+    { rawKey:"contract_amount",  targetKey:"target_contract_amount_next_month",  dKey:null }
+  ];
+  var CALL_TARGET_CONSTANT = 1500; // 架電目標の判定に使う固定値（設定タブで変更可）
+
+  var DEFAULT_FIELDS = [
+    { key:"next_day_call_target", label:"翌営業日目標架電数", type:"counter", frequency:"daily" },
+    { key:"calls_today", label:"本日架電", type:"counter", frequency:"daily" },
+    { key:"appointments", label:"アポ", type:"counter", frequency:"daily" },
+    { key:"visits", label:"訪問", type:"counter", frequency:"daily" },
+    { key:"contracts", label:"契約", type:"counter", frequency:"daily" },
+    { key:"contract_amount", label:"契約額", type:"number", frequency:"daily" },
+    { key:"target_appointments_next_month", label:"来月のアポ目標（月末に入力）", type:"number", frequency:"monthly", monthday:-1 },
+    { key:"target_visits_next_month", label:"来月の訪問目標（月末に入力）", type:"number", frequency:"monthly", monthday:-1 },
+    { key:"target_contracts_next_month", label:"来月の契約目標（月末に入力）", type:"number", frequency:"monthly", monthday:-1 },
+    { key:"target_contract_amount_next_month", label:"来月の契約額目標（月末に入力）", type:"number", frequency:"monthly", monthday:-1 },
+    { key:"e", label:"その他（欠勤等・上申事項）", type:"textarea", frequency:"daily" }
+  ];
+
+  var DEFAULT_TEMPLATE =
+"松本\n"+
+"・翌営業日目標架電数　{{next_day_call_target}}\n"+
+"・本日架電    {{calls_today}}\n"+
+"( {{calls_today}}/1500)\n"+
+"・アポ{{appointments}}({{b_appointments}}/{{c_appointments}}） \n"+
+"・訪問{{visits}}({{b_visits}}/{{c_visits}}） \n"+
+"・契約{{contracts}}({{b_contracts}}/{{c_contracts}})\n"+
+"・契約額{{contract_amount}}({{b_contract_amount}}/{{c_contract_amount}}）\n"+
+"●その他（欠勤等・上申事項)\n"+
+"アポ目標:  {{d_appointments}}\n"+
+"架電目標：{{d_calls}}\n"+
+"\n"+
+"{{e}}\n"+
+"{{#target_appointments_next_month}}\n来月のアポ目標: {{target_appointments_next_month}}{{/target_appointments_next_month}}"+
+"{{#target_visits_next_month}}\n来月の訪問目標: {{target_visits_next_month}}{{/target_visits_next_month}}"+
+"{{#target_contracts_next_month}}\n来月の契約目標: {{target_contracts_next_month}}{{/target_contracts_next_month}}"+
+"{{#target_contract_amount_next_month}}\n来月の契約額目標: {{target_contract_amount_next_month}}{{/target_contract_amount_next_month}}\n";
+
+  function defaultData(){
+    return {
+      fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)),
+      template: DEFAULT_TEMPLATE,
+      entries: {},
+      monthlyTargets: {},
+      callTarget: CALL_TARGET_CONSTANT
+    };
+  }
+
+  function loadData(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return defaultData();
+      var parsed = JSON.parse(raw);
+      if(!parsed.fields || !parsed.template) return defaultData();
+      if(!parsed.entries) parsed.entries = {};
+      if(!parsed.monthlyTargets) parsed.monthlyTargets = {};
+      if(!parsed.callTarget) parsed.callTarget = CALL_TARGET_CONSTANT;
+      return parsed;
+    }catch(e){
+      return defaultData();
+    }
+  }
+
+  function saveData(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  var state = loadData();
+
+  // ---------- date helpers ----------
+  function pad2(n){ return (n<10?"0":"")+n; }
+  function todayKey(d){
+    d = d || new Date();
+    return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+  }
+  var WEEKDAY_JP = ["日","月","火","水","木","金","土"];
+  function formatDateJP(d){
+    return d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日（"+WEEKDAY_JP[d.getDay()]+"）";
+  }
+
+  function isFieldActiveToday(field, today){
+    today = today || new Date();
+    if(field.frequency === "weekly"){
+      return today.getDay() === Number(field.weekday);
+    }
+    if(field.frequency === "monthly"){
+      var md = Number(field.monthday);
+      if(md === -1){
+        var lastDay = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+        return today.getDate() === lastDay;
+      }
+      return today.getDate() === md;
+    }
+    return true; // daily
+  }
+
+  function freqLabel(field){
+    if(field.frequency === "weekly") return "毎週"+WEEKDAY_JP[Number(field.weekday)]+"曜日";
+    if(field.frequency === "monthly"){
+      var md = Number(field.monthday);
+      return md === -1 ? "毎月末" : ("毎月"+md+"日");
+    }
+    return "毎日";
+  }
+
+  // ---------- KPI (b/c/d) helpers ----------
+  function monthKey(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1); }
+  function nextMonthKey(d){
+    var y = d.getFullYear();
+    var m = d.getMonth() + 1; // 0-indexed month of "next month" (may roll to 12)
+    if(m === 12){ m = 0; y += 1; }
+    return y+"-"+pad2(m+1); // back to 1-indexed for display/storage
+  }
+  // sum a numeric field across every stored entry within the given month (yyyy-mm), up to and including today
+  function sumFieldForMonth(fieldKey, mKey, uptoDateKey){
+    var total = 0;
+    Object.keys(state.entries).forEach(function(dKey){
+      if(dKey.indexOf(mKey) !== 0) return;
+      if(uptoDateKey && dKey > uptoDateKey) return;
+      var v = state.entries[dKey][fieldKey];
+      var n = parseFloat(v);
+      if(!isNaN(n)) total += n;
+    });
+    return total;
+  }
+  function getMonthlyTarget(itemKey, mKey){
+    var perItem = state.monthlyTargets[itemKey];
+    if(!perItem) return undefined;
+    return perItem[mKey];
+  }
+  function computeKpiValues(today){
+    var out = {};
+    var curMonth = monthKey(today);
+    var tKey = todayKey(today);
+
+    KPI_ITEMS.forEach(function(item){
+      var b = sumFieldForMonth(item.rawKey, curMonth, tKey);
+      var c = getMonthlyTarget(item.rawKey, curMonth);
+      out["b_"+item.rawKey] = String(b);
+      out["c_"+item.rawKey] = (c === undefined) ? "未設定" : String(c);
+      if(item.dKey){
+        out[item.dKey] = (c === undefined) ? "判定不可（目標未設定）" : (b >= Number(c) ? "達成" : "未達");
+      }
+    });
+
+    var bCalls = sumFieldForMonth("calls_today", curMonth, tKey);
+    var callTarget = Number(state.callTarget || CALL_TARGET_CONSTANT);
+    out.d_calls = bCalls >= callTarget ? "達成" : "未達";
+
+    return out;
+  }
+  // when the month-end target inputs were filled in today's submission, store them as NEXT month's target
+  function persistMonthlyTargets(values, today){
+    var nKey = nextMonthKey(today);
+    KPI_ITEMS.forEach(function(item){
+      var raw = values[item.targetKey];
+      if(raw === undefined || raw === null || raw === "") return;
+      var n = parseFloat(raw);
+      if(isNaN(n)) return;
+      if(!state.monthlyTargets[item.rawKey]) state.monthlyTargets[item.rawKey] = {};
+      state.monthlyTargets[item.rawKey][nKey] = n;
+    });
+  }
+
+  // ---------- template engine ----------
+  function renderTemplate(template, values, activeKeys){
+    var out = template.replace(/{{#(\w+)}}([\s\S]*?){{\/\1}}/g, function(m, key, inner){
+      return activeKeys.indexOf(key) !== -1 ? inner : "";
+    });
+    out = out.replace(/{{(\w+)}}/g, function(m, key){
+      if(key === "date") return formatDateJP(new Date());
+      return (values[key] !== undefined && values[key] !== null) ? values[key] : "";
+    });
+    return out;
+  }
+
+  // ---------- toast ----------
+  var toastEl = document.getElementById("toast");
+  var toastTimer = null;
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 2200);
+  }
+
+  // ---------- tabs ----------
+  var tabInput = document.getElementById("tab-input");
+  var tabSettings = document.getElementById("tab-settings");
+  var viewInput = document.getElementById("view-input");
+  var viewSettings = document.getElementById("view-settings");
+
+  function switchTab(name){
+    if(name === "view-input"){
+      viewInput.classList.add("active");
+      viewSettings.classList.remove("active");
+      tabInput.classList.add("active");
+      tabSettings.classList.remove("active");
+    } else {
+      viewSettings.classList.add("active");
+      viewInput.classList.remove("active");
+      tabSettings.classList.add("active");
+      tabInput.classList.remove("active");
+    }
+  }
+  tabInput.addEventListener("click", function(){ switchTab("view-input"); renderInputForm(); });
+  tabSettings.addEventListener("click", function(){ switchTab("view-settings"); renderSettings(); });
+
+  // ---------- input form rendering ----------
+  var fieldsContainer = document.getElementById("fieldsContainer");
+  var formCard = document.getElementById("formCard");
+  var resultCard = document.getElementById("resultCard");
+  var resultText = document.getElementById("resultText");
+
+  function todaysActiveFields(){
+    var today = new Date();
+    return state.fields.filter(function(f){ return isFieldActiveToday(f, today); });
+  }
+
+  function renderInputForm(){
+    var active = todaysActiveFields();
+    fieldsContainer.innerHTML = "";
+    if(active.length === 0){
+      fieldsContainer.innerHTML = "<p class='empty-note'>本日入力する項目はありません。</p>";
+    }
+    active.forEach(function(f){
+      var wrap = document.createElement("div");
+      wrap.className = "field-block";
+      var label = document.createElement("label");
+      label.className = "field-label";
+      label.textContent = f.label;
+      var tag = document.createElement("span");
+      tag.className = "field-tag";
+      tag.textContent = freqLabel(f);
+      label.appendChild(tag);
+      wrap.appendChild(label);
+
+      if(f.type === "counter"){
+        var row = document.createElement("div");
+        row.className = "counter-row";
+        var minusBtn = document.createElement("button");
+        minusBtn.type = "button";
+        minusBtn.textContent = "−";
+        var counterInput = document.createElement("input");
+        counterInput.type = "number";
+        counterInput.min = "0";
+        counterInput.max = "200";
+        counterInput.id = "input_" + f.key;
+        counterInput.dataset.key = f.key;
+        var plusBtn = document.createElement("button");
+        plusBtn.type = "button";
+        plusBtn.textContent = "＋";
+
+        var todayEntryC = state.entries[todayKey()];
+        counterInput.value = (todayEntryC && todayEntryC[f.key] !== undefined) ? todayEntryC[f.key] : "0";
+
+        function clamp(v){ v = Math.max(0, Math.min(200, v || 0)); return v; }
+        minusBtn.addEventListener("click", function(){
+          counterInput.value = clamp((parseInt(counterInput.value, 10) || 0) - 1);
+        });
+        plusBtn.addEventListener("click", function(){
+          counterInput.value = clamp((parseInt(counterInput.value, 10) || 0) + 1);
+        });
+        counterInput.addEventListener("change", function(){
+          counterInput.value = clamp(parseInt(counterInput.value, 10) || 0);
+        });
+
+        row.appendChild(minusBtn);
+        row.appendChild(counterInput);
+        row.appendChild(plusBtn);
+        wrap.appendChild(row);
+
+        var hint = document.createElement("div");
+        hint.className = "counter-hint";
+        hint.textContent = "0〜200の範囲で入力（＋/−ボタンまたは直接入力）";
+        wrap.appendChild(hint);
+
+        fieldsContainer.appendChild(wrap);
+        return; // counter type fully handled above
+      }
+
+      var inputEl;
+      if(f.type === "textarea"){
+        inputEl = document.createElement("textarea");
+      } else {
+        inputEl = document.createElement("input");
+        inputEl.type = f.type === "number" ? "number" : (f.type === "date" ? "date" : "text");
+      }
+      inputEl.id = "input_" + f.key;
+      inputEl.dataset.key = f.key;
+
+      // prefill from today's saved entry if present
+      var todayEntry = state.entries[todayKey()];
+      if(todayEntry && todayEntry[f.key] !== undefined){
+        inputEl.value = todayEntry[f.key];
+      }
+
+      wrap.appendChild(inputEl);
+      fieldsContainer.appendChild(wrap);
+    });
+  }
+
+  document.getElementById("btnComplete").addEventListener("click", function(){
+    var today = new Date();
+    var active = todaysActiveFields();
+    var values = {};
+    var activeKeys = [];
+    active.forEach(function(f){
+      var el = document.getElementById("input_" + f.key);
+      var v = el ? el.value : "";
+      values[f.key] = v;
+      activeKeys.push(f.key);
+    });
+
+    // persist today's entry for prefill / history (must happen BEFORE computing b so today's own values are included)
+    state.entries[todayKey(today)] = values;
+
+    // month-end target inputs (if any were filled today) become NEXT month's target
+    persistMonthlyTargets(values, today);
+
+    saveData();
+
+    // compute derived KPI values (monthly cumulative b, applicable target c, achievement d)
+    var kpiValues = computeKpiValues(today);
+    Object.keys(kpiValues).forEach(function(k){
+      values[k] = kpiValues[k];
+      activeKeys.push(k); // computed values are always available, regardless of today's field set
+    });
+
+    var rendered = renderTemplate(state.template, values, activeKeys);
+    // collapse 3+ blank lines to max 2 for cleanliness
+    rendered = rendered.replace(/\n{3,}/g, "\n\n").trim() + "\n";
+
+    resultText.value = rendered;
+    resultCard.style.display = "block";
+    resultCard.scrollIntoView({behavior:"smooth", block:"start"});
+  });
+
+  document.getElementById("btnEditAgain").addEventListener("click", function(){
+    resultCard.style.display = "none";
+    formCard.scrollIntoView({behavior:"smooth", block:"start"});
+  });
+
+  // ---------- clipboard ----------
+  function copyText(text){
+    return new Promise(function(resolve){
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){
+          resolve(true);
+        }).catch(function(){
+          resolve(fallbackCopy(text));
+        });
+      } else {
+        resolve(fallbackCopy(text));
+      }
+    });
+  }
+  function fallbackCopy(text){
+    try{
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    }catch(e){
+      return false;
+    }
+  }
+
+  document.getElementById("btnCopyOnly").addEventListener("click", function(){
+    copyText(resultText.value).then(function(ok){
+      showToast(ok ? "コピーしました" : "コピーに失敗しました。手動で選択してコピーしてください");
+    });
+  });
+
+  document.getElementById("btnCopyLine").addEventListener("click", function(){
+    var text = resultText.value;
+    copyText(text).then(function(ok){
+      showToast(ok ? "コピーしました。LINEを開きます…" : "コピーに失敗しました。LINEは開きます");
+      var url = "https://line.me/R/msg/text/?" + encodeURIComponent(text);
+      // small delay so the toast/clipboard write has a moment to settle before navigation
+      setTimeout(function(){
+        window.location.href = url;
+      }, 150);
+    });
+  });
+
+  // ---------- alarm intent ----------
+  document.getElementById("btnSetAlarm").addEventListener("click", function(e){
+    e.preventDefault();
+    var intentUrl = "intent://#Intent;action=android.intent.action.SET_ALARM;"+
+      "S.android.intent.extra.alarm.MESSAGE=Nippo;"+
+      "i.android.intent.extra.alarm.HOUR=19;"+
+      "i.android.intent.extra.alarm.MINUTES=0;"+
+      "end";
+    window.location.href = intentUrl;
+  });
+
+  // ---------- settings: fields admin ----------
+  var fieldsAdminList = document.getElementById("fieldsAdminList");
+
+  function renderFieldsAdmin(){
+    fieldsAdminList.innerHTML = "";
+    if(state.fields.length === 0){
+      fieldsAdminList.innerHTML = "<p class='empty-note'>項目がありません</p>";
+      return;
+    }
+    state.fields.forEach(function(f, idx){
+      var item = document.createElement("div");
+      item.className = "field-item";
+      item.innerHTML =
+        "<div class='fi-main'>"+
+          "<div class='fi-label'>"+escapeHtml(f.label)+"</div>"+
+          "<div class='fi-meta'>{{"+escapeHtml(f.key)+"}} ・ "+freqLabel(f)+"</div>"+
+        "</div>"+
+        "<div class='fi-actions'>"+
+          "<button class='icon-btn' data-act='edit' data-idx='"+idx+"'>編集</button>"+
+          "<button class='icon-btn' data-act='del' data-idx='"+idx+"'>削除</button>"+
+        "</div>";
+      fieldsAdminList.appendChild(item);
+    });
+
+    fieldsAdminList.querySelectorAll("[data-act='edit']").forEach(function(btn){
+      btn.addEventListener("click", function(){ openFieldModal(Number(btn.dataset.idx)); });
+    });
+    fieldsAdminList.querySelectorAll("[data-act='del']").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var idx = Number(btn.dataset.idx);
+        if(confirm("「"+state.fields[idx].label+"」を削除しますか？")){
+          state.fields.splice(idx, 1);
+          saveData();
+          renderFieldsAdmin();
+          renderPlaceholderList();
+        }
+      });
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  // ---------- field modal ----------
+  var fieldModalOverlay = document.getElementById("fieldModalOverlay");
+  var fmLabel = document.getElementById("fmLabel");
+  var fmKey = document.getElementById("fmKey");
+  var fmType = document.getElementById("fmType");
+  var fmFrequency = document.getElementById("fmFrequency");
+  var fmWeekdayWrap = document.getElementById("fmWeekdayWrap");
+  var fmWeekday = document.getElementById("fmWeekday");
+  var fmMonthdayWrap = document.getElementById("fmMonthdayWrap");
+  var fmMonthday = document.getElementById("fmMonthday");
+  var fmMonthdayCustom = document.getElementById("fmMonthdayCustom");
+  var editingIndex = null;
+
+  function openFieldModal(idx){
+    editingIndex = (typeof idx === "number") ? idx : null;
+    var f = editingIndex !== null ? state.fields[editingIndex] : null;
+    document.getElementById("fieldModalTitle").textContent = f ? "項目を編集" : "項目を追加";
+    fmLabel.value = f ? f.label : "";
+    fmKey.value = f ? f.key : "";
+    fmKey.disabled = !!f; // avoid key collisions with existing template refs
+    fmType.value = f ? f.type : "textarea";
+    fmFrequency.value = f ? f.frequency : "daily";
+    fmWeekday.value = f && f.weekday !== undefined ? String(f.weekday) : "5";
+    if(f && f.frequency === "monthly"){
+      var md = Number(f.monthday);
+      if([-1,1,15,25].indexOf(md) !== -1){
+        fmMonthday.value = String(md);
+        fmMonthdayCustom.style.display = "none";
+      } else {
+        fmMonthday.value = "custom";
+        fmMonthdayCustom.style.display = "block";
+        fmMonthdayCustom.value = md;
+      }
+    } else {
+      fmMonthday.value = "-1";
+      fmMonthdayCustom.style.display = "none";
+    }
+    updateFmConditionalFields();
+    fieldModalOverlay.classList.add("show");
+  }
+
+  function closeFieldModal(){
+    fieldModalOverlay.classList.remove("show");
+    editingIndex = null;
+  }
+
+  function updateFmConditionalFields(){
+    fmWeekdayWrap.style.display = fmFrequency.value === "weekly" ? "block" : "none";
+    fmMonthdayWrap.style.display = fmFrequency.value === "monthly" ? "block" : "none";
+  }
+  fmFrequency.addEventListener("change", updateFmConditionalFields);
+  fmMonthday.addEventListener("change", function(){
+    fmMonthdayCustom.style.display = fmMonthday.value === "custom" ? "block" : "none";
+  });
+
+  document.getElementById("btnAddField").addEventListener("click", function(){ openFieldModal(null); });
+  document.getElementById("fmCancel").addEventListener("click", closeFieldModal);
+
+  document.getElementById("fmSave").addEventListener("click", function(){
+    var label = fmLabel.value.trim();
+    var key = fmKey.value.trim().replace(/[^a-zA-Z0-9_]/g, "");
+    if(!label || !key){
+      showToast("項目名とキーを入力してください");
+      return;
+    }
+    if(editingIndex === null && state.fields.some(function(f){ return f.key === key; })){
+      showToast("そのキーは既に使われています");
+      return;
+    }
+    var field = { key:key, label:label, type:fmType.value, frequency:fmFrequency.value };
+    if(field.frequency === "weekly"){
+      field.weekday = Number(fmWeekday.value);
+    } else if(field.frequency === "monthly"){
+      field.monthday = fmMonthday.value === "custom" ? Number(fmMonthdayCustom.value || 1) : Number(fmMonthday.value);
+    }
+    if(editingIndex !== null){
+      // preserve original key
+      field.key = state.fields[editingIndex].key;
+      state.fields[editingIndex] = field;
+    } else {
+      state.fields.push(field);
+    }
+    saveData();
+    closeFieldModal();
+    renderFieldsAdmin();
+    renderPlaceholderList();
+    showToast("保存しました");
+    switchTab("view-input");
+    renderInputForm();
+  });
+
+  // ---------- template editor ----------
+  var templateEditor = document.getElementById("templateEditor");
+  var placeholderList = document.getElementById("placeholderList");
+
+  function renderPlaceholderList(){
+    placeholderList.innerHTML = "";
+    var dateChip = document.createElement("span");
+    dateChip.className = "ph-chip";
+    dateChip.textContent = "{{date}}";
+    dateChip.addEventListener("click", function(){ insertAtCursor(templateEditor, "{{date}}"); });
+    placeholderList.appendChild(dateChip);
+
+    state.fields.forEach(function(f){
+      var chip = document.createElement("span");
+      chip.className = "ph-chip";
+      chip.textContent = "{{"+f.key+"}}";
+      chip.title = f.label;
+      chip.addEventListener("click", function(){ insertAtCursor(templateEditor, "{{"+f.key+"}}"); });
+      placeholderList.appendChild(chip);
+    });
+
+    // computed KPI values (monthly cumulative / applicable target / achievement judgement)
+    var computedKeys = [];
+    KPI_ITEMS.forEach(function(item){
+      computedKeys.push({ key:"b_"+item.rawKey, title:item.rawKey+"の月間累計（自動計算）" });
+      computedKeys.push({ key:"c_"+item.rawKey, title:item.rawKey+"の今月の目標（月末に入力した値・自動計算）" });
+      if(item.dKey) computedKeys.push({ key:item.dKey, title:item.rawKey+"の達成/未達（自動判定）" });
+    });
+    computedKeys.push({ key:"d_calls", title:"架電の達成/未達（月間累計と固定目標"+(state.callTarget||CALL_TARGET_CONSTANT)+"の比較・自動判定）" });
+    computedKeys.forEach(function(ck){
+      var chip = document.createElement("span");
+      chip.className = "ph-chip";
+      chip.style.color = "#ffcf8f";
+      chip.textContent = "{{"+ck.key+"}}";
+      chip.title = ck.title;
+      chip.addEventListener("click", function(){ insertAtCursor(templateEditor, "{{"+ck.key+"}}"); });
+      placeholderList.appendChild(chip);
+    });
+  }
+
+  function insertAtCursor(el, text){
+    var start = el.selectionStart || el.value.length;
+    var end = el.selectionEnd || el.value.length;
+    el.value = el.value.slice(0, start) + text + el.value.slice(end);
+    el.focus();
+    el.selectionStart = el.selectionEnd = start + text.length;
+  }
+
+  document.getElementById("btnSaveTemplate").addEventListener("click", function(){
+    state.template = templateEditor.value;
+    saveData();
+    showToast("テンプレートを保存しました");
+    switchTab("view-input");
+    renderInputForm();
+  });
+
+  document.getElementById("btnResetAll").addEventListener("click", function(){
+    if(confirm("入力項目・テンプレートを初期状態に戻します。よろしいですか？（保存済みの日報履歴は保持されます）")){
+      var entries = state.entries;
+      state = defaultData();
+      state.entries = entries;
+      saveData();
+      renderSettings();
+      renderInputForm();
+      showToast("初期設定に戻しました");
+    }
+  });
+
+  function renderSettings(){
+    renderFieldsAdmin();
+    renderPlaceholderList();
+    templateEditor.value = state.template;
+    var callTargetInput = document.getElementById("callTargetInput");
+    if(callTargetInput) callTargetInput.value = state.callTarget || CALL_TARGET_CONSTANT;
+  }
+
+  document.getElementById("btnSaveCallTarget").addEventListener("click", function(){
+    var v = Number(document.getElementById("callTargetInput").value);
+    if(isNaN(v) || v <= 0){
+      showToast("正しい数値を入力してください");
+      return;
+    }
+    state.callTarget = v;
+    saveData();
+    renderPlaceholderList();
+    showToast("架電目標の判定値を保存しました");
+    switchTab("view-input");
+    renderInputForm();
+  });
+
+  // ---------- init ----------
+  document.getElementById("todayLabel").textContent = formatDateJP(new Date()) + "の日報";
+  renderInputForm();
+  renderSettings();
+})();
+</script>
+</body>
+</html>
