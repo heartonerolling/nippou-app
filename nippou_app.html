@@ -286,6 +286,30 @@
       </div>
 
       <div class="card">
+        <h2>今月の目標</h2>
+        <p class="muted">アポ・訪問・契約・契約額の「今月の目標」です。月最初の平日の日報作成時に入力欄が出ますが、ここからいつでも確認・変更できます。月が変わると自動的に未設定に戻ります。</p>
+        <div class="form-grid" style="margin-top:8px;">
+          <div>
+            <label class="field-label">アポ目標</label>
+            <input type="number" id="monthTargetInput_appointments" min="0">
+          </div>
+          <div>
+            <label class="field-label">訪問目標</label>
+            <input type="number" id="monthTargetInput_visits" min="0">
+          </div>
+          <div>
+            <label class="field-label">契約目標</label>
+            <input type="number" id="monthTargetInput_contracts" min="0">
+          </div>
+          <div>
+            <label class="field-label">契約額目標</label>
+            <input type="number" id="monthTargetInput_contract_amount" min="0">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btnSaveMonthTargets" style="margin-top:6px;">今月の目標を保存</button>
+      </div>
+
+      <div class="card">
         <h2>入力項目の管理</h2>
         <div id="fieldsAdminList"></div>
         <button class="btn btn-ghost" id="btnAddField" style="margin-top:10px;">＋ 入力項目を追加</button>
@@ -358,6 +382,7 @@
           <label class="field-label">毎月の日付</label>
           <select id="fmMonthday">
             <option value="-1">月末</option>
+            <option value="-2">月最初の平日</option>
             <option value="1">1日</option>
             <option value="15">15日</option>
             <option value="25">25日</option>
@@ -382,13 +407,14 @@
 
   var STORAGE_KEY = "nippouAppData_v1";
 
-  // KPI項目ごとの b(月間累計)/c(月末に来月分として入力する目標)/d(達成判定) の対応表。
-  // rawKey: 毎日の入力項目キー / targetKey: 月末に入力する「来月の目標」項目キー / dKey: 達成判定を出す場合のキー（不要ならnull）
+  // KPI項目ごとの b(月間累計)/c(今月の目標)/d(達成判定) の対応表。
+  // targetKeyは「月最初の平日」の日報フォームに自動で出てくるが、設定タブからいつでも入力・変更もできる。
+  // 入力した値はその月（YYYY-MM）専用として保存され、月が変わると自動的に未設定に戻る。
   var KPI_ITEMS = [
-    { rawKey:"appointments",     targetKey:"target_appointments_next_month",     dKey:"d_appointments" },
-    { rawKey:"visits",           targetKey:"target_visits_next_month",           dKey:null },
-    { rawKey:"contracts",        targetKey:"target_contracts_next_month",        dKey:null },
-    { rawKey:"contract_amount",  targetKey:"target_contract_amount_next_month",  dKey:null }
+    { rawKey:"appointments",     targetKey:"target_appointments_this_month",     dKey:"d_appointments" },
+    { rawKey:"visits",           targetKey:"target_visits_this_month",           dKey:null },
+    { rawKey:"contracts",        targetKey:"target_contracts_this_month",        dKey:null },
+    { rawKey:"contract_amount",  targetKey:"target_contract_amount_this_month",  dKey:null }
   ];
   var CALL_TARGET_CONSTANT = 1500; // 架電目標の判定に使う固定値（設定タブで変更可）
 
@@ -399,31 +425,32 @@
     { key:"visits", label:"訪問", type:"counter", frequency:"daily" },
     { key:"contracts", label:"契約", type:"counter", frequency:"daily" },
     { key:"contract_amount", label:"契約額", type:"number", frequency:"daily" },
-    { key:"target_appointments_next_month", label:"来月のアポ目標（月末に入力）", type:"number", frequency:"monthly", monthday:-1 },
-    { key:"target_visits_next_month", label:"来月の訪問目標（月末に入力）", type:"number", frequency:"monthly", monthday:-1 },
-    { key:"target_contracts_next_month", label:"来月の契約目標（月末に入力）", type:"number", frequency:"monthly", monthday:-1 },
-    { key:"target_contract_amount_next_month", label:"来月の契約額目標（月末に入力）", type:"number", frequency:"monthly", monthday:-1 },
+    { key:"target_appointments_this_month", label:"今月のアポ目標", type:"number", frequency:"monthly", monthday:-2 },
+    { key:"target_visits_this_month", label:"今月の訪問目標", type:"number", frequency:"monthly", monthday:-2 },
+    { key:"target_contracts_this_month", label:"今月の契約目標", type:"number", frequency:"monthly", monthday:-2 },
+    { key:"target_contract_amount_this_month", label:"今月の契約額目標", type:"number", frequency:"monthly", monthday:-2 },
+    { key:"tomorrow_goal", label:"明日の目標", type:"text", frequency:"daily" },
     { key:"e", label:"その他（欠勤等・上申事項）", type:"textarea", frequency:"daily" }
   ];
 
   var DEFAULT_TEMPLATE =
 "松本\n"+
 "・翌営業日目標架電数　{{next_day_call_target}}\n"+
-"・本日架電    {{calls_today}}\n"+
-"( {{calls_today}}/1500)\n"+
-"・アポ{{appointments}}({{b_appointments}}/{{c_appointments}}） \n"+
-"・訪問{{visits}}({{b_visits}}/{{c_visits}}） \n"+
-"・契約{{contracts}}({{b_contracts}}/{{c_contracts}})\n"+
-"・契約額{{contract_amount}}({{b_contract_amount}}/{{c_contract_amount}}）\n"+
+"・本日架電 {{calls_today}} ({{calls_today}}/1500)\n"+
+"・アポ {{appointments}} ({{b_appointments}}/{{c_appointments}}） \n"+
+"・訪問 {{visits}} ({{b_visits}}/{{c_visits}}） \n"+
+"・契約 {{contracts}} ({{b_contracts}}/{{c_contracts}})\n"+
+"・契約額 {{contract_amount}} ({{b_contract_amount}}/{{c_contract_amount}}）\n"+
 "●その他（欠勤等・上申事項)\n"+
-"アポ目標:  {{d_appointments}}\n"+
+"アポ目標：{{d_appointments}}\n"+
 "架電目標：{{d_calls}}\n"+
+"明日の目標：{{tomorrow_goal}}\n"+
 "\n"+
 "{{e}}\n"+
-"{{#target_appointments_next_month}}\n来月のアポ目標: {{target_appointments_next_month}}{{/target_appointments_next_month}}"+
-"{{#target_visits_next_month}}\n来月の訪問目標: {{target_visits_next_month}}{{/target_visits_next_month}}"+
-"{{#target_contracts_next_month}}\n来月の契約目標: {{target_contracts_next_month}}{{/target_contracts_next_month}}"+
-"{{#target_contract_amount_next_month}}\n来月の契約額目標: {{target_contract_amount_next_month}}{{/target_contract_amount_next_month}}\n";
+"{{#target_appointments_this_month}}\n今月のアポ目標を{{target_appointments_this_month}}に設定しました{{/target_appointments_this_month}}"+
+"{{#target_visits_this_month}}\n今月の訪問目標を{{target_visits_this_month}}に設定しました{{/target_visits_this_month}}"+
+"{{#target_contracts_this_month}}\n今月の契約目標を{{target_contracts_this_month}}に設定しました{{/target_contracts_this_month}}"+
+"{{#target_contract_amount_this_month}}\n今月の契約額目標を{{target_contract_amount_this_month}}に設定しました{{/target_contract_amount_this_month}}\n";
 
   function defaultData(){
     return {
@@ -467,6 +494,13 @@
     return d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日（"+WEEKDAY_JP[d.getDay()]+"）";
   }
 
+  // その月の最初の平日（月・火・水・木・金のうち最も早い日）の「日」を返す
+  function firstWeekdayDateOfMonth(today){
+    var d = new Date(today.getFullYear(), today.getMonth(), 1);
+    while(d.getDay() === 0 || d.getDay() === 6){ d.setDate(d.getDate() + 1); }
+    return d.getDate();
+  }
+
   function isFieldActiveToday(field, today){
     today = today || new Date();
     if(field.frequency === "weekly"){
@@ -478,6 +512,9 @@
         var lastDay = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
         return today.getDate() === lastDay;
       }
+      if(md === -2){
+        return today.getDate() === firstWeekdayDateOfMonth(today);
+      }
       return today.getDate() === md;
     }
     return true; // daily
@@ -487,19 +524,15 @@
     if(field.frequency === "weekly") return "毎週"+WEEKDAY_JP[Number(field.weekday)]+"曜日";
     if(field.frequency === "monthly"){
       var md = Number(field.monthday);
-      return md === -1 ? "毎月末" : ("毎月"+md+"日");
+      if(md === -1) return "毎月末";
+      if(md === -2) return "毎月最初の平日";
+      return "毎月"+md+"日";
     }
     return "毎日";
   }
 
   // ---------- KPI (b/c/d) helpers ----------
   function monthKey(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1); }
-  function nextMonthKey(d){
-    var y = d.getFullYear();
-    var m = d.getMonth() + 1; // 0-indexed month of "next month" (may roll to 12)
-    if(m === 12){ m = 0; y += 1; }
-    return y+"-"+pad2(m+1); // back to 1-indexed for display/storage
-  }
   // sum a numeric field across every stored entry within the given month (yyyy-mm), up to and including today
   function sumFieldForMonth(fieldKey, mKey, uptoDateKey){
     var total = 0;
@@ -538,16 +571,17 @@
 
     return out;
   }
-  // when the month-end target inputs were filled in today's submission, store them as NEXT month's target
+  // 今月の目標として入力された値を保存する。入力されたタイミングに関わらず「今月」の枠に入り、
+  // 月が変わると自動的に未設定（判定不可）に戻る。
   function persistMonthlyTargets(values, today){
-    var nKey = nextMonthKey(today);
+    var mKey = monthKey(today);
     KPI_ITEMS.forEach(function(item){
       var raw = values[item.targetKey];
       if(raw === undefined || raw === null || raw === "") return;
       var n = parseFloat(raw);
       if(isNaN(n)) return;
       if(!state.monthlyTargets[item.rawKey]) state.monthlyTargets[item.rawKey] = {};
-      state.monthlyTargets[item.rawKey][nKey] = n;
+      state.monthlyTargets[item.rawKey][mKey] = n;
     });
   }
 
@@ -678,10 +712,20 @@
       inputEl.id = "input_" + f.key;
       inputEl.dataset.key = f.key;
 
-      // prefill from today's saved entry if present
-      var todayEntry = state.entries[todayKey()];
-      if(todayEntry && todayEntry[f.key] !== undefined){
-        inputEl.value = todayEntry[f.key];
+      // 「今月の目標」系の項目は日付ごとの入力ではなく「今月」単位の値なので、
+      // 今日の入力履歴ではなく state.monthlyTargets から現在値を出す
+      var kpiItemForField = KPI_ITEMS.filter(function(it){ return it.targetKey === f.key; })[0];
+      if(kpiItemForField){
+        var existingTarget = getMonthlyTarget(kpiItemForField.rawKey, monthKey(new Date()));
+        if(existingTarget !== undefined){
+          inputEl.value = existingTarget;
+        }
+      } else {
+        // prefill from today's saved entry if present
+        var todayEntry = state.entries[todayKey()];
+        if(todayEntry && todayEntry[f.key] !== undefined){
+          inputEl.value = todayEntry[f.key];
+        }
       }
 
       wrap.appendChild(inputEl);
@@ -698,13 +742,20 @@
       var el = document.getElementById("input_" + f.key);
       var v = el ? el.value : "";
       values[f.key] = v;
-      activeKeys.push(f.key);
+      // 「今月の目標」項目は、その日実際に値を入力したときだけ確認メッセージを出す
+      // （表示されただけで未入力の場合は空欄の確認文を出さない）
+      var isTargetField = KPI_ITEMS.some(function(it){ return it.targetKey === f.key; });
+      if(isTargetField){
+        if(v !== "") activeKeys.push(f.key);
+      } else {
+        activeKeys.push(f.key);
+      }
     });
 
     // persist today's entry for prefill / history (must happen BEFORE computing b so today's own values are included)
     state.entries[todayKey(today)] = values;
 
-    // month-end target inputs (if any were filled today) become NEXT month's target
+    // 今月の目標として入力されたぶんを保存（入力タイミングに関わらず「今月」の枠に入る）
     persistMonthlyTargets(values, today);
 
     saveData();
@@ -861,7 +912,7 @@
     fmWeekday.value = f && f.weekday !== undefined ? String(f.weekday) : "5";
     if(f && f.frequency === "monthly"){
       var md = Number(f.monthday);
-      if([-1,1,15,25].indexOf(md) !== -1){
+      if([-1,-2,1,15,25].indexOf(md) !== -1){
         fmMonthday.value = String(md);
         fmMonthdayCustom.style.display = "none";
       } else {
@@ -952,7 +1003,7 @@
     var computedKeys = [];
     KPI_ITEMS.forEach(function(item){
       computedKeys.push({ key:"b_"+item.rawKey, title:item.rawKey+"の月間累計（自動計算）" });
-      computedKeys.push({ key:"c_"+item.rawKey, title:item.rawKey+"の今月の目標（月末に入力した値・自動計算）" });
+      computedKeys.push({ key:"c_"+item.rawKey, title:item.rawKey+"の今月の目標（設定タブでいつでも入力可・自動計算）" });
       if(item.dKey) computedKeys.push({ key:item.dKey, title:item.rawKey+"の達成/未達（自動判定）" });
     });
     computedKeys.push({ key:"d_calls", title:"架電の達成/未達（月間累計と固定目標"+(state.callTarget||CALL_TARGET_CONSTANT)+"の比較・自動判定）" });
@@ -1001,7 +1052,44 @@
     templateEditor.value = state.template;
     var callTargetInput = document.getElementById("callTargetInput");
     if(callTargetInput) callTargetInput.value = state.callTarget || CALL_TARGET_CONSTANT;
+    renderMonthTargetsSettings();
   }
+
+  // ---------- settings: this month's targets (editable anytime) ----------
+  function renderMonthTargetsSettings(){
+    var mKey = monthKey(new Date());
+    KPI_ITEMS.forEach(function(item){
+      var el = document.getElementById("monthTargetInput_" + item.rawKey);
+      if(!el) return;
+      var v = getMonthlyTarget(item.rawKey, mKey);
+      el.value = (v === undefined) ? "" : v;
+    });
+  }
+
+  document.getElementById("btnSaveMonthTargets").addEventListener("click", function(){
+    var mKey = monthKey(new Date());
+    var anySet = false;
+    KPI_ITEMS.forEach(function(item){
+      var el = document.getElementById("monthTargetInput_" + item.rawKey);
+      if(!el) return;
+      var raw = el.value;
+      if(raw === "" || raw === null) return; // 空欄は既存の値を消さずそのままにする
+      var n = parseFloat(raw);
+      if(isNaN(n)) return;
+      if(!state.monthlyTargets[item.rawKey]) state.monthlyTargets[item.rawKey] = {};
+      state.monthlyTargets[item.rawKey][mKey] = n;
+      anySet = true;
+    });
+    saveData();
+    renderPlaceholderList();
+    if(anySet){
+      showToast("今月の目標を保存しました");
+      switchTab("view-input");
+      renderInputForm();
+    } else {
+      showToast("数値を入力してください");
+    }
+  });
 
   document.getElementById("btnSaveCallTarget").addEventListener("click", function(){
     var v = Number(document.getElementById("callTargetInput").value);
