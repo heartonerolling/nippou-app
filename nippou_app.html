@@ -307,6 +307,33 @@
           </div>
         </div>
         <button class="btn btn-primary" id="btnSaveMonthTargets" style="margin-top:6px;">今月の目標を保存</button>
+
+        <hr class="sep">
+        <h2 style="margin-bottom:8px;">今月の現在の集計値（訂正用）</h2>
+        <p class="muted">日報の「アポ」「訪問」「契約」「契約額」「架電」は、毎日の入力を積み上げた今月の累計値として計算しています。数値に誤りがある場合はここで直接訂正できます。訂正後は、その数値を起点として以降の入力が加算されていきます。</p>
+        <div class="form-grid" style="margin-top:8px;">
+          <div>
+            <label class="field-label">アポ（今月累計）</label>
+            <input type="number" id="runningTotalInput_appointments">
+          </div>
+          <div>
+            <label class="field-label">訪問（今月累計）</label>
+            <input type="number" id="runningTotalInput_visits">
+          </div>
+          <div>
+            <label class="field-label">契約（今月累計）</label>
+            <input type="number" id="runningTotalInput_contracts">
+          </div>
+          <div>
+            <label class="field-label">契約額（今月累計）</label>
+            <input type="number" id="runningTotalInput_contract_amount">
+          </div>
+          <div>
+            <label class="field-label">架電（今月累計）</label>
+            <input type="number" id="runningTotalInput_calls_today">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btnSaveRunningTotals" style="margin-top:6px;">集計値を訂正して保存</button>
       </div>
 
       <div class="card">
@@ -418,6 +445,14 @@
   ];
   var CALL_TARGET_CONSTANT = 1500; // 架電目標の判定に使う固定値（設定タブで変更可）
 
+  // 月間累計（b）を「毎回加算」で積み上げる対象キー一覧。
+  // 数値の誤りがあった場合は、設定タブの「今月の現在の集計値」からその時点の値へ直接修正でき、
+  // 修正後はその修正した数値に対して以降の入力が加算されていく。
+  var RUNNING_TOTAL_KEYS = ["appointments", "visits", "contracts", "contract_amount", "calls_today"];
+
+  // 日をまたいでも基本的に前回の値を引き継ぎ、入力があった場合のみ変わる項目
+  var CARRIED_FIELDS = ["next_day_call_target"];
+
   var DEFAULT_FIELDS = [
     { key:"next_day_call_target", label:"翌営業日目標架電数", type:"counter", frequency:"daily" },
     { key:"calls_today", label:"本日架電", type:"counter", frequency:"daily" },
@@ -458,6 +493,9 @@
       template: DEFAULT_TEMPLATE,
       entries: {},
       monthlyTargets: {},
+      monthlyRunningTotals: {},
+      carriedValues: {},
+      dailyContributions: {},
       callTarget: CALL_TARGET_CONSTANT
     };
   }
@@ -470,6 +508,9 @@
       if(!parsed.fields || !parsed.template) return defaultData();
       if(!parsed.entries) parsed.entries = {};
       if(!parsed.monthlyTargets) parsed.monthlyTargets = {};
+      if(!parsed.monthlyRunningTotals) parsed.monthlyRunningTotals = {};
+      if(!parsed.carriedValues) parsed.carriedValues = {};
+      if(!parsed.dailyContributions) parsed.dailyContributions = {};
       if(!parsed.callTarget) parsed.callTarget = CALL_TARGET_CONSTANT;
       return parsed;
     }catch(e){
@@ -533,17 +574,31 @@
 
   // ---------- KPI (b/c/d) helpers ----------
   function monthKey(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1); }
-  // sum a numeric field across every stored entry within the given month (yyyy-mm), up to and including today
-  function sumFieldForMonth(fieldKey, mKey, uptoDateKey){
-    var total = 0;
-    Object.keys(state.entries).forEach(function(dKey){
-      if(dKey.indexOf(mKey) !== 0) return;
-      if(uptoDateKey && dKey > uptoDateKey) return;
-      var v = state.entries[dKey][fieldKey];
-      var n = parseFloat(v);
-      if(!isNaN(n)) total += n;
-    });
-    return total;
+
+  // 月間累計（b）は「その日入力された分をその都度加算していく」方式で管理する。
+  // 過去の入力履歴を毎回合算し直すのではなく、state.monthlyRunningTotals に積み上げた値をそのまま使う。
+  // これにより、設定タブから現在の集計値を直接訂正した場合、その訂正値を起点として以降の入力が加算されていく。
+  function getRunningTotal(key, mKey){
+    var perKey = state.monthlyRunningTotals[key];
+    if(!perKey || perKey[mKey] === undefined) return 0;
+    return Number(perKey[mKey]) || 0;
+  }
+  function addToRunningTotal(key, mKey, amount){
+    if(!amount) return;
+    if(!state.monthlyRunningTotals[key]) state.monthlyRunningTotals[key] = {};
+    var cur = state.monthlyRunningTotals[key][mKey];
+    state.monthlyRunningTotals[key][mKey] = (cur === undefined ? 0 : Number(cur) || 0) + amount;
+  }
+  // 同じ日に何度も「完了」を押して数値を訂正した場合に二重加算しないよう、
+  // その日すでに加算した分（寄与分）を記録しておき、差分だけを月間累計に反映する。
+  function applyDailyContribution(key, dateKey, mKey, newValue){
+    if(!state.dailyContributions[dateKey]) state.dailyContributions[dateKey] = {};
+    var prev = state.dailyContributions[dateKey][key] || 0;
+    var n = parseFloat(newValue);
+    if(isNaN(n)) n = 0;
+    var delta = n - prev;
+    if(delta !== 0) addToRunningTotal(key, mKey, delta);
+    state.dailyContributions[dateKey][key] = n;
   }
   function getMonthlyTarget(itemKey, mKey){
     var perItem = state.monthlyTargets[itemKey];
@@ -553,10 +608,9 @@
   function computeKpiValues(today){
     var out = {};
     var curMonth = monthKey(today);
-    var tKey = todayKey(today);
 
     KPI_ITEMS.forEach(function(item){
-      var b = sumFieldForMonth(item.rawKey, curMonth, tKey);
+      var b = getRunningTotal(item.rawKey, curMonth);
       var c = getMonthlyTarget(item.rawKey, curMonth);
       out["b_"+item.rawKey] = String(b);
       out["c_"+item.rawKey] = (c === undefined) ? "未設定" : String(c);
@@ -565,11 +619,16 @@
       }
     });
 
-    var bCalls = sumFieldForMonth("calls_today", curMonth, tKey);
+    var bCalls = getRunningTotal("calls_today", curMonth);
     var callTarget = Number(state.callTarget || CALL_TARGET_CONSTANT);
     out.d_calls = bCalls >= callTarget ? "達成" : "未達";
 
     return out;
+  }
+  function formatNumberComma(n){
+    n = Number(n);
+    if(isNaN(n)) return String(n);
+    return n.toLocaleString("en-US");
   }
   // 今月の目標として入力された値を保存する。入力されたタイミングに関わらず「今月」の枠に入り、
   // 月が変わると自動的に未設定（判定不可）に戻る。
@@ -675,7 +734,14 @@
         plusBtn.textContent = "＋";
 
         var todayEntryC = state.entries[todayKey()];
-        counterInput.value = (todayEntryC && todayEntryC[f.key] !== undefined) ? todayEntryC[f.key] : "0";
+        if(todayEntryC && todayEntryC[f.key] !== undefined){
+          counterInput.value = todayEntryC[f.key];
+        } else if(CARRIED_FIELDS.indexOf(f.key) !== -1 && state.carriedValues[f.key] !== undefined && state.carriedValues[f.key] !== ""){
+          // 前回入力した値を引き継ぐ（翌営業日目標架電数など）。入力があった場合のみ後で更新される。
+          counterInput.value = state.carriedValues[f.key];
+        } else {
+          counterInput.value = "0";
+        }
 
         function clamp(v){ v = Math.max(0, Math.min(200, v || 0)); return v; }
         minusBtn.addEventListener("click", function(){
@@ -752,11 +818,26 @@
       }
     });
 
+    var tKeyStr = todayKey(today);
+    var curMonth = monthKey(today);
+
     // persist today's entry for prefill / history (must happen BEFORE computing b so today's own values are included)
-    state.entries[todayKey(today)] = values;
+    state.entries[tKeyStr] = values;
 
     // 今月の目標として入力されたぶんを保存（入力タイミングに関わらず「今月」の枠に入る）
     persistMonthlyTargets(values, today);
+
+    // 翌営業日目標架電数など「基本的に前回の値を引き継ぐ」項目は、今回入力された値を次回以降の引き継ぎ値として保存する
+    CARRIED_FIELDS.forEach(function(key){
+      if(values[key] !== undefined && values[key] !== ""){
+        state.carriedValues[key] = values[key];
+      }
+    });
+
+    // 月間累計は「その日の分を加算」方式。同じ日に何度も完了を押しても差分のみ反映され、二重加算はしない
+    RUNNING_TOTAL_KEYS.forEach(function(key){
+      applyDailyContribution(key, tKeyStr, curMonth, values[key]);
+    });
 
     saveData();
 
@@ -766,6 +847,20 @@
       values[k] = kpiValues[k];
       activeKeys.push(k); // computed values are always available, regardless of today's field set
     });
+
+    // 契約額まわりは表示用に3桁区切りカンマを付ける（保存されている生データ自体は数値のまま）
+    if(values.contract_amount !== undefined && values.contract_amount !== ""){
+      var rawAmt = parseFloat(values.contract_amount);
+      if(!isNaN(rawAmt)) values.contract_amount = formatNumberComma(rawAmt);
+    }
+    if(values.b_contract_amount !== undefined){
+      var rawB = parseFloat(values.b_contract_amount);
+      if(!isNaN(rawB)) values.b_contract_amount = formatNumberComma(rawB);
+    }
+    if(values.c_contract_amount !== undefined && values.c_contract_amount !== "未設定"){
+      var rawC = parseFloat(values.c_contract_amount);
+      if(!isNaN(rawC)) values.c_contract_amount = formatNumberComma(rawC);
+    }
 
     var rendered = renderTemplate(state.template, values, activeKeys);
     // collapse 3+ blank lines to max 2 for cleanliness
@@ -974,8 +1069,6 @@
     renderFieldsAdmin();
     renderPlaceholderList();
     showToast("保存しました");
-    switchTab("view-input");
-    renderInputForm();
   });
 
   // ---------- template editor ----------
@@ -1053,7 +1146,37 @@
     var callTargetInput = document.getElementById("callTargetInput");
     if(callTargetInput) callTargetInput.value = state.callTarget || CALL_TARGET_CONSTANT;
     renderMonthTargetsSettings();
+    renderRunningTotalsSettings();
   }
+
+  // ---------- settings: this month's running totals (correction) ----------
+  function renderRunningTotalsSettings(){
+    var mKey = monthKey(new Date());
+    RUNNING_TOTAL_KEYS.forEach(function(key){
+      var el = document.getElementById("runningTotalInput_" + key);
+      if(!el) return;
+      el.value = getRunningTotal(key, mKey);
+    });
+  }
+
+  document.getElementById("btnSaveRunningTotals").addEventListener("click", function(){
+    var mKey = monthKey(new Date());
+    var anySet = false;
+    RUNNING_TOTAL_KEYS.forEach(function(key){
+      var el = document.getElementById("runningTotalInput_" + key);
+      if(!el) return;
+      var raw = el.value;
+      if(raw === "" || raw === null) return; // 空欄は既存の値を消さずそのままにする
+      var n = parseFloat(raw);
+      if(isNaN(n)) return;
+      if(!state.monthlyRunningTotals[key]) state.monthlyRunningTotals[key] = {};
+      state.monthlyRunningTotals[key][mKey] = n;
+      anySet = true;
+    });
+    saveData();
+    renderRunningTotalsSettings();
+    showToast(anySet ? "集計値を訂正しました" : "数値を入力してください");
+  });
 
   // ---------- settings: this month's targets (editable anytime) ----------
   function renderMonthTargetsSettings(){
