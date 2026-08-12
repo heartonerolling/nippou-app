@@ -471,7 +471,7 @@
   var DEFAULT_TEMPLATE =
 "松本\n"+
 "・翌営業日目標架電数　{{next_day_call_target}}\n"+
-"・本日架電 {{calls_today}} ({{calls_today}}/1500)\n"+
+"・本日架電 {{calls_today}} ({{b_calls}}/1500)\n"+
 "・アポ {{appointments}} ({{b_appointments}}/{{c_appointments}}） \n"+
 "・訪問 {{visits}} ({{b_visits}}/{{c_visits}}） \n"+
 "・契約 {{contracts}} ({{b_contracts}}/{{c_contracts}})\n"+
@@ -621,6 +621,7 @@
 
     var bCalls = getRunningTotal("calls_today", curMonth);
     var callTarget = Number(state.callTarget || CALL_TARGET_CONSTANT);
+    out.b_calls = String(bCalls);
     out.d_calls = bCalls >= callTarget ? "達成" : "未達";
 
     return out;
@@ -1099,6 +1100,7 @@
       computedKeys.push({ key:"c_"+item.rawKey, title:item.rawKey+"の今月の目標（設定タブでいつでも入力可・自動計算）" });
       if(item.dKey) computedKeys.push({ key:item.dKey, title:item.rawKey+"の達成/未達（自動判定）" });
     });
+    computedKeys.push({ key:"b_calls", title:"架電の今月累計（自動計算）" });
     computedKeys.push({ key:"d_calls", title:"架電の達成/未達（月間累計と固定目標"+(state.callTarget||CALL_TARGET_CONSTANT)+"の比較・自動判定）" });
     computedKeys.forEach(function(ck){
       var chip = document.createElement("span");
