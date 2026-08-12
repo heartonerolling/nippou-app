@@ -500,6 +500,17 @@
     };
   }
 
+  // 以前の版のデフォルトテンプレートを使い続けているユーザーのために、
+  // 「本日架電」行の書式だけを自動で新しい書式（今月累計を表示）へアップグレードする
+  var OLD_CALLS_LINE = "・本日架電 {{calls_today}} ({{calls_today}}/1500)";
+  var NEW_CALLS_LINE = "・本日架電 {{calls_today}} ({{b_calls}}/1500)";
+  function upgradeTemplate(tpl){
+    if(typeof tpl === "string" && tpl.indexOf(OLD_CALLS_LINE) !== -1){
+      tpl = tpl.split(OLD_CALLS_LINE).join(NEW_CALLS_LINE);
+    }
+    return tpl;
+  }
+
   function loadData(){
     try{
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -512,6 +523,7 @@
       if(!parsed.carriedValues) parsed.carriedValues = {};
       if(!parsed.dailyContributions) parsed.dailyContributions = {};
       if(!parsed.callTarget) parsed.callTarget = CALL_TARGET_CONSTANT;
+      parsed.template = upgradeTemplate(parsed.template);
       return parsed;
     }catch(e){
       return defaultData();
@@ -523,6 +535,7 @@
   }
 
   var state = loadData();
+  saveData(); // テンプレート自動アップグレードなど、読み込み時の補正結果をすぐに保存しておく
 
   // ---------- date helpers ----------
   function pad2(n){ return (n<10?"0":"")+n; }
